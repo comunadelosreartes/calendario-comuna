@@ -1,7 +1,7 @@
 from datetime import datetime
 import json
 import os
-import streamlit asStreamlit # Usamos st para abreviar
+import streamlit as st
 
 # Archivo donde guardaremos los turnos
 DB_FILE = "turnos.json"
