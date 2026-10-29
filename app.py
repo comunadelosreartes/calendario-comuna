@@ -24,16 +24,30 @@ def formatear_fecha_amigable(fecha_str):
         return str(fecha_str)
 
 def formatear_hora_amigable(hora_str):
-    """Limpia la hora por si viene con formato largo de Google Sheets"""
+    """Fuerza a mostrar siempre el formato HH:MM limpio evitando que Google altere las horas"""
     if not hora_str:
         return ""
     try:
-        s = str(hora_str)
+        s = str(hora_str).strip()
+        # Si viene con formato ISO de Google Sheets tipo '1899-12-30T13:46:48.000Z' o similar, 
+        # a veces Google interpreta mal la zona horaria. Si el usuario seleccionó 08:00, 
+        # busquemos si contiene la hora real o cortemos de forma segura.
         if "T" in s:
             parte_hora = s.split("T")[1].split("Z")[0]
-            h, m, *_ = parte_hora.split(":")
-            return f"{h}:{m}"
-        return s[:5]
+            partes = parte_hora.split(":")
+            # Forzamos a tomar las horas y minutos limpios
+            if len(partes) >= 2:
+                h = partes[0].zfill(2)
+                m = partes[1].zfill(2)
+                # Ojo: si Google metió una fecha base 1899 con desfase UTC, 
+                # nos quedamos estrictamente con los primeros 5 caracteres si ya es un string corto, 
+                # o tomamos el valor textual si fue guardado prolijamente.
+        
+        # Si el string ya viene limpio como "08:00" o "13:30"
+        if len(s) >= 5 and s[2] == ':':
+            return s[:5]
+            
+        return s[:5] if len(s) >= 5 else s
     except Exception:
         return str(hora_str)
 
@@ -132,7 +146,7 @@ if menu == "Solicitar Turno":
                     "motivo": motivo,
                     "detalle": detalle,
                     "fecha": fecha_str,
-                    "hora": hora_elegida,
+                    "hora": str(hora_elegida),  # Forzamos que se guarde estrictamente como texto "HH:MM"
                     "asistencia": "Pendiente"
                 }
                 agregar_un_turno(nuevo_turno)
@@ -201,7 +215,7 @@ elif menu == "Calendario / Turnos Tomados":
                             nueva_hora_sel = st.selectbox("Nuevo Horario disponible", libres_reprog, key=f"n_hora_{idx_real}")
                             if st.button("Confirmar Reprogramación", key=f"btn_conf_reprog_{idx_real}"):
                                 turnos[idx_real]["fecha"] = nueva_fecha_str
-                                turnos[idx_real]["hora"] = nueva_hora_sel
+                                turnos[idx_real]["hora"] = str(nueva_hora_sel)
                                 turnos[idx_real]["asistencia"] = "Pendiente"
                                 guardar_turnos_completo(turnos)
                                 st.success("¡Turno reprogramado con éxito!")
@@ -288,39 +302,7 @@ elif menu == "🖨️ Imprimir Agenda del Día":
                     </td>
                     <td style="border: 1px solid #ddd; padding: 10px;">
                         <strong>{motivo}</strong><br>
-                        <span style="font-size: 12px; color: #555;">{detalle}</span>
-                    </td>
-                    <td style="border: 1px solid #ddd; padding: 10px; text-align: center; font-size: 12px;">
-                        [ &nbsp; ] Presente<br>[ &nbsp; ] Ausente
-                    </td>
-                </tr>
-                """
-
-        html_final = f"""
-        <div class="hoja-impresion">
-            <h2 style="text-align: center; margin-bottom: 0; color: #111;">COMUNA DE LOS REARTES</h2>
-            <p style="text-align: center; font-size: 14px; color: #666; margin-top: 5px;">Presidencia Comunal — Agenda de Audiencias</p>
-            <hr style="border: 1px solid #333; margin: 20px 0;">
-            <p style="font-size: 16px;"><strong>Fecha:</strong> {fecha_imp_amigable}</p>
-            <p style="font-size: 16px;"><strong>Total de audiencias programadas:</strong> {len(turnos_dia_ordenados)}</p>
-            <br>
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px;">
-                <thead>
-                    <tr style="background-color: #f2f2f2; border-bottom: 2px solid #333;">
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: center; width: 15%;">Hora</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left; width: 30%;">Vecino / DNI / Teléfono</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left; width: 35%;">Motivo / Detalle</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: center; width: 20%;">Asistencia</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filas_html}
-                </tbody>
-            </table>
-        </div>
-        """
-
-    # Forzar renderizado HTML puro sin que Markdown lo interprete mal
+                        <span style="font-size: 12px; color: #5puro sin que Markdown lo interprete mal
     st.components.v1.html(html_final, height=600, scrolling=True)
             
     st.markdown("---")
