@@ -11,13 +11,19 @@ SCOPES = [
 
 @st.cache_resource
 def conectar_gsheets():
+    # Usamos las credenciales bajo la estructura de tu otro proyecto
+    gcp_secrets = st.secrets["connections.gsheets"]
+    
     credentials = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
+        gcp_secrets,
         scopes=SCOPES
     )
     gc = gspread.authorize(credentials)
-    # ⚠️ ASEGURATE que este nombre coincida exactamente con el de tu Google Sheets
-    sh = gc.open("Base_Turnos_Comuna")
+    
+    # Intenta abrir la planilla por nombre (o por la URL si la tienes definida en el secret)
+    sheet_name = gcp_secrets.get("spreadsheet", "Base_Turnos_Comuna")
+    # Si en el secret el campo de la hoja está vacío o es un nombre, lo manejamos:
+    sh = gc.open(sheet_name if sheet_name else "Base_Turnos_Comuna")
     return sh.sheet1
 
 # Manejo seguro de la conexión
@@ -25,8 +31,8 @@ try:
     sheet = conectar_gsheets()
 except Exception as e:
     st.error(f"⚠️ Error al conectar con Google Sheets: {e}")
-    st.info("Revisá que el nombre de la planilla en el código sea exactamente igual al de Google Drive y que esté compartida con el correo de la Service Account.")
-    st.stop() # Frena la ejecución para que no tire NameError después
+    st.info("Revisá que la planilla esté compartida con el correo de la Service Account y que el nombre en el secret/código sea correcto.")
+    st.stop()
 
 def cargar_turnos():
     try:
