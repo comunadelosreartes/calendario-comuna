@@ -10,7 +10,7 @@ def formatear_fecha_amigable(fecha_str):
     if not fecha_str:
         return ""
     try:
-        f_limpia = str(fecha_str).split("T")[0]
+        f_limpia = str(fecha_str).split("T")[0].strip()
         dt = datetime.strptime(f_limpia, "%Y-%m-%d")
         
         dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
@@ -45,9 +45,13 @@ def cargar_datos():
         if response.ok:
             data = response.json()
             if isinstance(data, dict):
-                # Limpiamos y normalizamos los días bloqueados a strings puros "YYYY-MM-DD"
                 bloqueos_crudos = data.get("bloqueos", [])
-                bloqueos_limpios = [str(b).split("T")[0].strip() for b in bloqueos_crudos if b]
+                # Limpiamos y normalizamos cada fecha bloqueada estrictamente a YYYY-MM-DD
+                bloqueos_limpios = []
+                for b in bloqueos_crudos:
+                    if b:
+                        f_limpia = str(b).split("T")[0].strip()
+                        bloqueos_limpios.append(f_limpia)
                 return data.get("turnos", []), bloqueos_limpios
             elif isinstance(data, list):
                 return data, []
@@ -111,9 +115,9 @@ if menu == "Solicitar Turno":
     st.subheader("📝 Nuevo Pedido de Audiencia")
     
     fecha_seleccionada = st.date_input("Fecha deseada", min_value=datetime.today())
-    fecha_str = str(fecha_seleccionada).strip()
+    fecha_str = fecha_seleccionada.strftime("%Y-%m-%d").strip()
     
-    # Validar si el día está bloqueado (comparación exacta de strings YYYY-MM-DD)
+    # Validar si el día está bloqueado (comparación estricta)
     if fecha_str in dias_bloqueados:
         st.error(f"🚫 **Atención:** El día **{formatear_fecha_amigable(fecha_str)}** se encuentra **BLOQUEADO** (No hay atención / Viaje de la Presidenta). No es posible asignar turnos.")
     else:
@@ -225,7 +229,7 @@ elif menu == "Calendario / Turnos Tomados":
                     st.markdown("---")
                     with st.expander("🔄 Reprogramar este turno"):
                         nueva_fecha_input = st.date_input("Nueva Fecha", min_value=datetime.today(), key=f"n_fec_{idx_real}")
-                        nueva_fecha_str = str(nueva_fecha_input)
+                        nueva_fecha_str = nueva_fecha_input.strftime("%Y-%m-%d").strip()
                         
                         if nueva_fecha_str in dias_bloqueados:
                             st.warning("⚠️ La fecha seleccionada está bloqueada. Elija otra.")
@@ -263,7 +267,7 @@ elif menu == "🔒 Bloquear / Desbloquear Días":
     col_b1, col_b2 = st.columns(2)
     with col_b1:
         fecha_bloqueo_input = st.date_input("Fecha a gestionar", min_value=datetime.today(), key="input_bloqueo")
-        fecha_bloq_str = str(fecha_bloqueo_input)
+        fecha_bloq_str = fecha_bloqueo_input.strftime("%Y-%m-%d").strip()
         fecha_bloq_amigable = formatear_fecha_amigable(fecha_bloq_str)
         
     with col_b2:
@@ -334,7 +338,7 @@ elif menu == "🖨️ Imprimir Agenda del Día":
     st.write("Elegí la fecha para generar el parte diario listo para imprimir.")
     
     fecha_imprimir = st.date_input("Seleccionar Fecha", min_value=datetime.today(), key="input_fecha_imprimir")
-    fecha_imp_str = str(fecha_imprimir)
+    fecha_imp_str = fecha_imprimir.strftime("%Y-%m-%d").strip()
     fecha_imp_amigable = formatear_fecha_amigable(fecha_imp_str)
     
     st.markdown("---")
