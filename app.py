@@ -65,6 +65,7 @@ if menu == "Solicitar Turno":
     with st.form("form_turno", clear_on_submit=True):
         nombre = st.text_input("Nombre y Apellido")
         dni = st.text_input("DNI")
+        telefono = st.text_input("Número Telefónico (Ej: 3546...)") # <--- NUEVO CAMPO
         motivo = st.selectbox("Motivo de la reunión", ["Obras Públicas", "Acción Social", "Audiencia General", "Reclamos Varios"])
         detalle = st.text_area("Breve detalle del tema")
         
@@ -77,10 +78,11 @@ if menu == "Solicitar Turno":
         enviado = st.form_submit_button("Confirmar Turno")
         
         if enviado:
-            if nombre and dni and hora_elegida:
+            if nombre and dni and telefono and hora_elegida:
                 nuevo_turno = {
                     "nombre": nombre,
                     "dni": dni,
+                    "telefono": telefono, # <--- GUARDAMOS EL TELÉFONO
                     "motivo": motivo,
                     "detalle": detalle,
                     "fecha": fecha_str,
@@ -92,7 +94,7 @@ if menu == "Solicitar Turno":
                 st.success(f"¡Turno confirmado para el {fecha_str} a las {hora_elegida} hs!")
                 st.rerun()
             else:
-                st.error("Por favor, completá todos los campos obligatorios.")
+                st.error("Por favor, completá todos los campos obligatorios (incluyendo el teléfono).")
 
 elif menu == "Calendario / Turnos Tomados":
     st.subheader("📅 Agenda de Turnos Registrados")
@@ -100,10 +102,7 @@ elif menu == "Calendario / Turnos Tomados":
     if not turnos:
         st.info("No hay turnos registrados por el momento.")
     else:
-        # Ordenar todos los turnos cronológicamente por fecha y hora
         turnos_ordenados = sorted(turnos, key=lambda x: (x['fecha'], x['hora']))
-        
-        # Agrupar visualmente por fecha
         fechas_unicas = sorted(list(set(t['fecha'] for t in turnos_ordenados)))
         
         for fecha in fechas_unicas:
@@ -111,12 +110,12 @@ elif menu == "Calendario / Turnos Tomados":
             turnos_del_dia = [t for t in turnos_ordenados if t['fecha'] == fecha]
             
             for t in turnos_del_dia:
-                # Buscamos el índice original en la lista general para poder borrarlo o modificarlo si hace falta
                 idx_real = turnos.index(t)
                 
-                # Diseño estilo tarjeta resumida con el horario y el nombre
                 with st.expander(f"⏰ {t['hora']} hs — **{t['nombre']}** ({t['motivo']})"):
                     st.write(f"**DNI:** {t['dni']}")
+                    # Usamos .get por si algún turno viejo no tenía teléfono cargado
+                    st.write(f"**Teléfono:** {t.get('telefono', 'No especificado')}") # <--- SE MUESTRA EN EL PANEL
                     st.write(f"**Detalle del tema:** {t['detalle']}")
                     st.write(f"**Estado:** {t['estado']}")
                     
