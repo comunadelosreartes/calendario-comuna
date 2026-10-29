@@ -16,14 +16,17 @@ def conectar_gsheets():
         scopes=SCOPES
     )
     gc = gspread.authorize(credentials)
-    # Nombre exacto de la planilla que creaste en tu Google Drive
+    # ⚠️ ASEGURATE que este nombre coincida exactamente con el de tu Google Sheets
     sh = gc.open("Base_Turnos_Comuna")
     return sh.sheet1
 
+# Manejo seguro de la conexión
 try:
     sheet = conectar_gsheets()
 except Exception as e:
-    st.error("Error al conectar con Google Sheets. Revisa la configuración de Secrets y el nombre de la planilla.")
+    st.error(f"⚠️ Error al conectar con Google Sheets: {e}")
+    st.info("Revisá que el nombre de la planilla en el código sea exactamente igual al de Google Drive y que esté compartida con el correo de la Service Account.")
+    st.stop() # Frena la ejecución para que no tire NameError después
 
 def cargar_turnos():
     try:
