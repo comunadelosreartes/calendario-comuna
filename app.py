@@ -3,7 +3,7 @@ import streamlit as st
 import requests
 
 # 🌐 PEGA AQUÍ LA URL DE TU GOOGLE APPS SCRIPT
-WEB_APP_URL = "TU_URL_DE_APPS_SCRIPT_AQUI"
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyVRhXYs4SA3LJRwQKuLaPG3OOxmJk1VMxlZUToTNOEF8Ml0DxYg5niZQW8RQ4kvDm5zg/exec"
 
 def formatear_fecha_amigable(fecha_str):
     """Convierte '2026-10-29T03:00:00.000Z' o '2026-10-29' en 'Miércoles, 29 de octubre de 2026'"""
