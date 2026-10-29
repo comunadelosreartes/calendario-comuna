@@ -24,19 +24,21 @@ def formatear_fecha_amigable(fecha_str):
         return str(fecha_str)
 
 def formatear_hora_amigable(hora_str):
-    """Extrae prolijamente el horario HH:MM evitando que Google altere o devuelva la fecha base 1899"""
+    """Toma la hora tal cual viene de la base de datos de forma limpia y directa"""
     if not hora_str:
         return ""
     try:
         s = str(hora_str).strip()
-        # Si Google Sheets devuelve formato ISO con la fecha base 1899 (ej: 1899-12-30T08:00:00.000Z)
-        if "T" in s:
+        # Si por alguna razón viene en formato ISO de Google, extraemos la hora y minutos
+        if "T" in s and ":" in s:
             parte_hora = s.split("T")[1].replace("Z", "")
             h, m, *_ = parte_hora.split(":")
             return f"{h}:{m}"
-        # Si ya viene limpio como "08:00"
-        if len(s) >= 5 and s[2] == ':':
+        
+        # Si ya viene como string plano ("10:30" o similar)
+        if len(s) >= 5:
             return s[:5]
+            
         return s
     except Exception:
         return str(hora_str)
