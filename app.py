@@ -11,19 +11,19 @@ SCOPES = [
 
 @st.cache_resource
 def conectar_gsheets():
-    # Usamos las credenciales bajo la estructura de tu otro proyecto
-    gcp_secrets = st.secrets["connections.gsheets"]
+    # Leemos directamente la sección completa del secret
+    sec = st.secrets["connections.gsheets"]
     
+    # Armamos las credenciales ignorando campos extraños
     credentials = Credentials.from_service_account_info(
-        gcp_secrets,
+        dict(sec),
         scopes=SCOPES
     )
     gc = gspread.authorize(credentials)
     
-    # Intenta abrir la planilla por nombre (o por la URL si la tienes definida en el secret)
-    sheet_name = gcp_secrets.get("spreadsheet", "Base_Turnos_Comuna")
-    # Si en el secret el campo de la hoja está vacío o es un nombre, lo manejamos:
-    sh = gc.open(sheet_name if sheet_name else "Base_Turnos_Comuna")
+    # Abrimos la planilla directamente por la URL guardada en el secret
+    url_sheet = sec["spreadsheet"]
+    sh = gc.open_by_url(url_sheet)
     return sh.sheet1
 
 # Manejo seguro de la conexión
@@ -31,7 +31,7 @@ try:
     sheet = conectar_gsheets()
 except Exception as e:
     st.error(f"⚠️ Error al conectar con Google Sheets: {e}")
-    st.info("Revisá que la planilla esté compartida con el correo de la Service Account y que el nombre en el secret/código sea correcto.")
+    st.info("Revisá que en los Secrets de Streamlit esté creada la sección [connections.gsheets] con el campo 'spreadsheet' y las credenciales.")
     st.stop()
 
 def cargar_turnos():
