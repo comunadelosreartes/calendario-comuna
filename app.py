@@ -10,7 +10,6 @@ def formatear_fecha_amigable(fecha_str):
     if not fecha_str:
         return ""
     try:
-        # Extraer solo la parte de la fecha si viene con formato ISO
         f_limpia = str(fecha_str).split("T")[0]
         dt = datetime.strptime(f_limpia, "%Y-%m-%d")
         
@@ -31,11 +30,10 @@ def formatear_hora_amigable(hora_str):
     try:
         s = str(hora_str)
         if "T" in s:
-            # Extraer hora de formato ISO ej: 1899-12-30T13:46:48.000Z -> 13:46
             parte_hora = s.split("T")[1].split("Z")[0]
             h, m, *_ = parte_hora.split(":")
             return f"{h}:{m}"
-        return s[:5] # Devuelve HH:MM si ya viene corto
+        return s[:5]
     except Exception:
         return str(hora_str)
 
@@ -81,7 +79,7 @@ st.title("🏛️ Gestión de Turnos - Presidencia Comunal")
 st.write("Sistema de turnos y audiencias con la presidenta.")
 
 turnos = cargar_turnos()
-menu = st.sidebar.selectbox("Menú", ["Solicitar Turno", "Calendario / Turnos Tomados"])
+menu = st.sidebar.selectbox("Menú", ["Solicitar Turno", "Calendario / Turnos Tomados", "🖨️ Imprimir Agenda del Día"])
 
 if menu == "Solicitar Turno":
     st.subheader("📝 Nuevo Pedido de Audiencia")
@@ -89,7 +87,6 @@ if menu == "Solicitar Turno":
     fecha_seleccionada = st.date_input("Fecha deseada", min_value=datetime.today())
     fecha_str = str(fecha_seleccionada)
     
-    # Normalizamos la comparación con los turnos ya cargados
     horarios_ocupados = [formatear_hora_amigable(t["hora"]) for t in turnos if str(t.get("fecha", "")).split("T")[0] == fecha_str]
     todos_los_horarios = generar_horarios_disponibles()
     horarios_libres = [h for h in todos_los_horarios if h not in horarios_ocupados]
@@ -150,7 +147,6 @@ elif menu == "Calendario / Turnos Tomados":
     if not turnos:
         st.info("No hay turnos registrados por el momento.")
     else:
-        # Ordenar normalizando fechas
         turnos_ordenados = sorted(turnos, key=lambda x: (str(x.get('fecha', '')).split('T')[0], str(x.get('hora', ''))))
         fechas_unicas = sorted(list(set(str(t.get('fecha', '')).split('T')[0] for t in turnos_ordenados)))
         
@@ -220,3 +216,53 @@ elif menu == "Calendario / Turnos Tomados":
                         st.rerun()
                         
             st.markdown("---")
+
+elif menu == "🖨️ Imprimir Agenda del Día":
+    st.subheader("🖨️ Generar Vista para Impresión")
+    st.write("Seleccioná un día para visualizar la agenda completa de audiencias lista para imprimir.")
+    
+    fecha_imprimir = st.date_input("Seleccionar Fecha a Imprimir", min_value=datetime.today(), key="input_fecha_imprimir")
+    fecha_imp_str = str(fecha_imprimir)
+    fecha_imp_amigable = formatear_fecha_amigable(fecha_imp_str)
+    
+    st.markdown("---")
+    
+    if not turnos:
+        st.info("No hay turnos registrados en el sistema.")
+    else:
+        turnos_dia = [t for t in turnos if str(t.get('fecha', '')).split('T')[0] == fecha_imp_str]
+        turnos_dia_ordenados = sorted(turnos_dia, key=lambda x: str(x.get('hora', '')))
+        
+        # Contenedor con estilo limpio para impresión
+        st.markdown(f"### 🏛️ Comuna de Los Reartes — Agenda de Audiencias")
+        st.markdown(f"**Fecha:** {fecha_imp_amigable}")
+        st.markdown(f"**Total de turnos agendados:** {len(turnos_dia_ordenados)}")
+        st.markdown("---")
+        
+        if not turnos_dia_ordenados:
+            st.warning("No hay audiencias programadas para esta fecha.")
+        else:
+            # Mostrar tabla o lista detallada para impresión
+            for i, t in enumerate(turnos_dia_ordenados, 1):
+                hora_limpia = formatear_hora_amigable(t.get('hora', ''))
+                st.markdown(f"""
+                **{i}. Horario:** `{hora_limpia} hs`  
+                * **Vecino/a:** {t.get('nombre', '')} (DNI: {t.get('dni', '')})  
+                * **Teléfono:** {t.get('telefono', 'No especificado')}  
+                * **Motivo:** {t.get('motivo', '')}  
+                * **Detalle:** {t.get('detalle', '')}  
+                * **Asistencia:** `[  ]` Presente  `[  ]` Ausente
+                """)
+                st.markdown("--------------------------------------------------")
+            
+            # Botón nativo de impresión del navegador
+            st.markdown("---")
+            if st.button("🖨️ Imprimir / Guardar como PDF"):
+                st.markdown(
+                    """
+                    <script>
+                        window.print();
+                    </script>
+                    """,
+                    unsafe_allow_html=True
+                )
