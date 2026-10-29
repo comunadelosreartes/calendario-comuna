@@ -218,7 +218,6 @@ elif menu == "Calendario / Turnos Tomados":
             st.markdown("---")
 
 elif menu == "🖨️ Imprimir Agenda del Día":
-    # CSS especial para ocultar la barra lateral y elementos al imprimir
     st.markdown("""
         <style>
         @media print {
@@ -240,6 +239,7 @@ elif menu == "🖨️ Imprimir Agenda del Día":
             border-radius: 8px;
             border: 1px solid #e0e0e0;
             color: #333;
+            font-family: sans-serif;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -254,7 +254,7 @@ elif menu == "🖨️ Imprimir Agenda del Día":
     st.markdown("---")
     
     if not turnos:
-        st.markdown(f"""
+        html_final = f"""
         <div class="hoja-impresion">
             <h2 style="text-align: center; margin-bottom: 0; color: #111;">COMUNA DE LOS REARTES</h2>
             <p style="text-align: center; font-size: 14px; color: #666; margin-top: 5px;">Presidencia Comunal — Agenda de Audiencias</p>
@@ -262,7 +262,7 @@ elif menu == "🖨️ Imprimir Agenda del Día":
             <p style="font-size: 16px;"><strong>Fecha:</strong> {fecha_imp_amigable}</p>
             <p style="color: #888;">No hay turnos registrados en el sistema.</p>
         </div>
-        """, unsafe_allow_html=True)
+        """
     else:
         turnos_dia = [t for t in turnos if str(t.get('fecha', '')).split('T')[0] == fecha_imp_str]
         turnos_dia_ordenados = sorted(turnos_dia, key=lambda x: str(x.get('hora', '')))
@@ -280,23 +280,23 @@ elif menu == "🖨️ Imprimir Agenda del Día":
                 detalle = t.get('detalle', 'Sin detalles')
                 
                 filas_html += f"""
-                    <tr style="border-bottom: 1px solid #ddd;">
-                        <td style="border: 1px solid #ddd; padding: 10px; text-align: center; font-weight: bold; font-size: 15px;">{hora_limpia} hs</td>
-                        <td style="border: 1px solid #ddd; padding: 10px;">
-                            <strong>{nombre}</strong><br>
-                            <span style="font-size: 12px; color: #555;">DNI: {dni} | Tel: {tel}</span>
-                        </td>
-                        <td style="border: 1px solid #ddd; padding: 10px;">
-                            <strong>{motivo}</strong><br>
-                            <span style="font-size: 12px; color: #555;">{detalle}</span>
-                        </td>
-                        <td style="border: 1px solid #ddd; padding: 10px; text-align: center; font-size: 12px;">
-                            [ &nbsp; ] Presente<br>[ &nbsp; ] Ausente
-                        </td>
-                    </tr>
+                <tr style="border-bottom: 1px solid #ddd;">
+                    <td style="border: 1px solid #ddd; padding: 10px; text-align: center; font-weight: bold; font-size: 15px;">{hora_limpia} hs</td>
+                    <td style="border: 1px solid #ddd; padding: 10px;">
+                        <strong>{nombre}</strong><br>
+                        <span style="font-size: 12px; color: #555;">DNI: {dni} | Tel: {tel}</span>
+                    </td>
+                    <td style="border: 1px solid #ddd; padding: 10px;">
+                        <strong>{motivo}</strong><br>
+                        <span style="font-size: 12px; color: #555;">{detalle}</span>
+                    </td>
+                    <td style="border: 1px solid #ddd; padding: 10px; text-align: center; font-size: 12px;">
+                        [ &nbsp; ] Presente<br>[ &nbsp; ] Ausente
+                    </td>
+                </tr>
                 """
 
-        st.markdown(f"""
+        html_final = f"""
         <div class="hoja-impresion">
             <h2 style="text-align: center; margin-bottom: 0; color: #111;">COMUNA DE LOS REARTES</h2>
             <p style="text-align: center; font-size: 14px; color: #666; margin-top: 5px;">Presidencia Comunal — Agenda de Audiencias</p>
@@ -318,8 +318,10 @@ elif menu == "🖨️ Imprimir Agenda del Día":
                 </tbody>
             </table>
         </div>
-        """, unsafe_allow_html=True)
+        """
+
+    # Forzar renderizado HTML puro sin que Markdown lo interprete mal
+    st.components.v1.html(html_final, height=600, scrolling=True)
             
     st.markdown("---")
-    st.info("💡 **Para imprimir:** Presioná **Ctrl + P** en tu teclado. El sistema ocultará automáticamente los menús y dejará solo la planilla prolija lista para la impresora o PDF.")
     st.info("💡 **Para imprimir:** Presioná **Ctrl + P** en tu teclado. El sistema ocultará automáticamente los menús y dejará solo la planilla prolija lista para la impresora o PDF.")
