@@ -1,6 +1,7 @@
 from datetime import datetime, time, timedelta
 import streamlit as st
 import requests
+import textwrap
 
 # 🌐 PEGA AQUÍ LA URL DE TU GOOGLE APPS SCRIPT
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyVRhXYs4SA3LJRwQKuLaPG3OOxmJk1VMxlZUToTNOEF8Ml0DxYg5niZQW8RQ4kvDm5zg/exec"
@@ -222,11 +223,9 @@ elif menu == "🖨️ Imprimir Agenda del Día":
     st.markdown("""
         <style>
         @media print {
-            /* Ocultar barra lateral, botones y elementos de navegación */
             [data-testid="stSidebar"], header, footer, button {
                 display: none !important;
             }
-            /* Ocupar todo el ancho de la hoja */
             [data-testid="stMain"] {
                 width: 100% !important;
                 margin: 0 !important;
@@ -236,7 +235,6 @@ elif menu == "🖨️ Imprimir Agenda del Día":
                 background-color: white;
             }
         }
-        /* Estilo visual elegante en pantalla antes de imprimir */
         .hoja-impresion {
             background: white;
             padding: 30px;
@@ -257,13 +255,20 @@ elif menu == "🖨️ Imprimir Agenda del Día":
     st.markdown("---")
     
     if not turnos:
-        st.info("No hay turnos registrados en el sistema.")
+        html_code = f"""
+        <div class="hoja-impresion">
+            <h2 style="text-align: center; margin-bottom: 0; color: #111;">COMUNA DE LOS REARTES</h2>
+            <p style="text-align: center; font-size: 14px; color: #666; margin-top: 5px;">Presidencia Comunal — Agenda de Audiencias</p>
+            <hr style="border: 1px solid #333; margin: 20px 0;">
+            <p style="font-size: 16px;"><strong>Fecha:</strong> {fecha_imp_amigable}</p>
+            <p style="color: #888;">No hay turnos registrados en el sistema.</p>
+        </div>
+        """
     else:
         turnos_dia = [t for t in turnos if str(t.get('fecha', '')).split('T')[0] == fecha_imp_str]
         turnos_dia_ordenados = sorted(turnos_dia, key=lambda x: str(x.get('hora', '')))
         
-        # Contenedor con formato de documento formal
-        st.markdown(f"""
+        html_code = f"""
         <div class="hoja-impresion">
             <h2 style="text-align: center; margin-bottom: 0; color: #111;">COMUNA DE LOS REARTES</h2>
             <p style="text-align: center; font-size: 14px; color: #666; margin-top: 5px;">Presidencia Comunal — Agenda de Audiencias</p>
@@ -271,13 +276,12 @@ elif menu == "🖨️ Imprimir Agenda del Día":
             <p style="font-size: 16px;"><strong>Fecha:</strong> {fecha_imp_amigable}</p>
             <p style="font-size: 16px;"><strong>Total de audiencias programadas:</strong> {len(turnos_dia_ordenados)}</p>
             <br>
-        """, unsafe_allow_html=True)
+        """
         
         if not turnos_dia_ordenados:
-            st.warning("No hay audiencias programadas para esta fecha.")
+            html_code += "<p style='color: #888;'>No hay audiencias programadas para esta fecha.</p></div>"
         else:
-            # Armamos una tabla prolija que queda perfecta en papel
-            html_tabla = """
+            html_code += """
             <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px;">
                 <thead>
                     <tr style="background-color: #f2f2f2; border-bottom: 2px solid #333;">
@@ -298,7 +302,7 @@ elif menu == "🖨️ Imprimir Agenda del Día":
                 motivo = t.get('motivo', '')
                 detalle = t.get('detalle', 'Sin detalles')
                 
-                html_tabla += f"""
+                html_code += f"""
                     <tr style="border-bottom: 1px solid #ddd;">
                         <td style="border: 1px solid #ddd; padding: 10px; text-align: center; font-weight: bold; font-size: 15px;">{hora_limpia} hs</td>
                         <td style="border: 1px solid #ddd; padding: 10px;">
@@ -315,12 +319,12 @@ elif menu == "🖨️ Imprimir Agenda del Día":
                     </tr>
                 """
             
-            html_tabla += """
+            html_code += """
                 </tbody>
             </table>
             </div>
             """
-            st.markdown(html_tabla, unsafe_allow_html=True)
             
-        st.markdown("---")
-        st.info("💡 **Para imprimir:** Hacé clic en los tres puntitos arriba a la derecha de tu navegador y elegí **Imprimir** (o presioná `Ctrl + P`), y el sistema recortará automáticamente todo lo innecesario para dejar solo la planilla prolija.")
+    st.markdown(textwrap.dedent(html_code), unsafe_allow_html=True)
+    st.markdown("---")
+    st.info("💡 **Para imprimir:** Presioná **Ctrl + P** en tu teclado. El sistema ocultará automáticamente los menús y dejará solo la planilla prolija lista para la impresora o PDF.")
