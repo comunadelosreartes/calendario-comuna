@@ -28,38 +28,42 @@ menu = st.sidebar.selectbox("Menú", ["Solicitar Turno", "Ver Turnos (Admin)"])
 if menu == "Solicitar Turno":
     st.subheader("📝 Nuevo Pedido de Audiencia")
     
-    nombre = st.text_input("Nombre y Apellido")
-    dni = st.text_input("DNI")
-    motivo = st.selectbox("Motivo de la reunión", ["Obras Públicas", "Acción Social", "Audiencia General", "Reclamos Varios"])
-    detalle = st.text_area("Breve detalle del tema")
-    
-    fecha = st.date_input("Fecha deseada", min_value=datetime.today())
-    hora = st.time_input("Hora sugerida")
-    
-    if st.button("Confirmar Turno"):
-        if nombre and dni:
-            nuevo_turno = {
-                "nombre": nombre,
-                "dni": dni,
-                "motivo": motivo,
-                "detalle": detalle,
-                "fecha": str(fecha),
-                "hora": str(hora),
-                "estado": "Pendiente"
-            }
-            turnos.append(nuevo_turno)
-            guardar_turnos(turnos)
-            st.success("¡Turno solicitado con éxito! Nos pondremos en contacto para confirmarlo.")
-        else:
-            st.error("Por favor, completá al menos tu Nombre y DNI.")
+    # Creamos un formulario (esto permite limpiar los campos automáticamente al enviar)
+    with st.form("form_turno", clear_on_submit=True):
+        nombre = st.text_input("Nombre y Apellido")
+        dni = st.text_input("DNI")
+        motivo = st.selectbox("Motivo de la reunión", ["Obras Públicas", "Acción Social", "Audiencia General", "Reclamos Varios"])
+        detalle = st.text_area("Breve detalle del tema")
+        
+        fecha = st.date_input("Fecha deseada", min_value=datetime.today())
+        hora = st.time_input("Hora sugerida")
+        
+        # El botón de envío dentro del form se llama form_submit_button
+        enviado = st.form_submit_button("Confirmar Turno")
+        
+        if enviado:
+            if nombre and dni:
+                nuevo_turno = {
+                    "nombre": nombre,
+                    "dni": dni,
+                    "motivo": motivo,
+                    "detalle": detalle,
+                    "fecha": str(fecha),
+                    "hora": str(hora),
+                    "estado": "Pendiente"
+                }
+                turnos.append(nuevo_turno)
+                guardar_turnos(turnos)
+                st.success("¡Turno solicitado con éxito! Nos pondremos en contacto para confirmarlo.")
+            else:
+                st.error("Por favor, completá al menos tu Nombre y DNI.")
 
 elif menu == "Ver Turnos (Admin)":
     st.subheader("🔒 Panel de Control - Turnos Registrados")
     
-    # Contraseña simple para administración (puedes cambiarla)
     password = st.text_input("Contraseña de Administrador", type="password")
     
-    if password == "comuna2026": # Clave de ejemplo
+    if password == "comuna2026": 
         if not turnos:
             st.info("No hay turnos registrados por el momento.")
         else:
