@@ -5,6 +5,40 @@ import requests
 # 🌐 PEGA AQUÍ LA URL DE TU GOOGLE APPS SCRIPT
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyVRhXYs4SA3LJRwQKuLaPG3OOxmJk1VMxlZUToTNOEF8Ml0DxYg5niZQW8RQ4kvDm5zg/exec"
 
+def formatear_fecha_amigable(fecha_str):
+    """Convierte '2026-10-29T03:00:00.000Z' o '2026-10-29' en 'Miércoles, 29 de octubre de 2026'"""
+    if not fecha_str:
+        return ""
+    try:
+        # Extraer solo la parte de la fecha si viene con formato ISO
+        f_limpia = str(fecha_str).split("T")[0]
+        dt = datetime.strptime(f_limpia, "%Y-%m-%d")
+        
+        dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+        meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+        
+        nombre_dia = dias[dt.weekday()]
+        nombre_mes = meses[dt.month - 1]
+        
+        return f"{nombre_dia}, {dt.day} de {nombre_mes} de {dt.year}"
+    except Exception:
+        return str(fecha_str)
+
+def formatear_hora_amigable(hora_str):
+    """Limpia la hora por si viene con formato largo de Google Sheets"""
+    if not hora_str:
+        return ""
+    try:
+        s = str(hora_str)
+        if "T" in s:
+            # Extraer hora de formato ISO ej: 1899-12-30T13:46:48.000Z -> 13:46
+            parte_hora = s.split("T")[1].split("Z")[0]
+            h, m, *_ = parte_hora.split(":")
+            return f"{h}:{m}"
+        return s[:5] # Devuelve HH:MM si ya viene corto
+    except Exception:
+        return str(hora_str)
+
 def cargar_turnos():
     try:
         response = requests.get(WEB_APP_URL)
@@ -55,7 +89,8 @@ if menu == "Solicitar Turno":
     fecha_seleccionada = st.date_input("Fecha deseada", min_value=datetime.today())
     fecha_str = str(fecha_seleccionada)
     
-    horarios_ocupados = [str(t["hora"]) for t in turnos if str(t.get("fecha")) == fecha_str]
+    # Normalizamos la comparación con los turnos ya cargados
+    horarios_ocupados = [formatear_hora_amigable(t["hora"]) for t in turnos if str(t.get("fecha", "")).split("T")[0] == fecha_str]
     todos_los_horarios = generar_horarios_disponibles()
     horarios_libres = [h for h in todos_los_horarios if h not in horarios_ocupados]
     
@@ -115,15 +150,18 @@ elif menu == "Calendario / Turnos Tomados":
     if not turnos:
         st.info("No hay turnos registrados por el momento.")
     else:
-        turnos_ordenados = sorted(turnos, key=lambda x: (str(x['fecha']), str(x['hora'])))
-        fechas_unicas = sorted(list(set(str(t['fecha']) for t in turnos_ordenados)))
+        # Ordenar normalizando fechas
+        turnos_ordenados = sorted(turnos, key=lambda x: (str(x.get('fecha', '')).split('T')[0], str(x.get('hora', ''))))
+        fechas_unicas = sorted(list(set(str(t.get('fecha', '')).split('T')[0] for t in turnos_ordenados)))
         
-        for fecha in fechas_unicas:
-            st.markdown(f"### 🗓️ Día: {fecha}")
-            turnos_del_dia = [t for t in turnos_ordenados if str(t['fecha']) == fecha]
+        for fecha_iso in fechas_unicas:
+            fecha_amigable = formatear_fecha_amigable(fecha_iso)
+            st.markdown(f"### 🗓️ {fecha_amigable}")
+            turnos_del_dia = [t for t in turnos_ordenados if str(t.get('fecha', '')).split('T')[0] == fecha_iso]
             
             for t in turnos_del_dia:
                 idx_real = turnos.index(t)
+                hora_limpia = formatear_hora_amigable(t.get('hora', ''))
                 
                 estado_asis = t.get('asistencia', 'Pendiente')
                 icono_estado = "⏳"
@@ -132,10 +170,10 @@ elif menu == "Calendario / Turnos Tomados":
                 elif estado_asis == "Ausente":
                     icono_estado = "❌"
                 
-                with st.expander(f"{icono_estado} {t['hora']} hs — **{t['nombre']}** ({t['motivo']}) [{estado_asis}]"):
-                    st.write(f"**DNI:** {t['dni']}")
+                with st.expander(f"{icono_estado} {hora_limpia} hs — **{t.get('nombre', '')}** ({t.get('motivo', '')}) [{estado_asis}]"):
+                    st.write(f"**DNI:** {t.get('dni', '')}")
                     st.write(f"**Teléfono:** {t.get('telefono', 'No especificado')}")
-                    st.write(f"**Detalle del tema:** {t['detalle']}")
+                    st.write(f"**Detalle del tema:** {t.get('detalle', '')}")
                     st.write(f"**Asistencia:** {estado_asis}")
                     
                     st.markdown("---")
@@ -158,8 +196,8 @@ elif menu == "Calendario / Turnos Tomados":
                         nueva_fecha_str = str(nueva_fecha_input)
                         
                         ocupados_reprog = [
-                            str(item["hora"]) for i_item, item in enumerate(turnos) 
-                            if str(item.get("fecha")) == nueva_fecha_str and i_item != idx_real
+                            formatear_hora_amigable(item.get("hora", "")) for i_item, item in enumerate(turnos) 
+                            if str(item.get("fecha", "")).split("T")[0] == nueva_fecha_str and i_item != idx_real
                         ]
                         libres_reprog = [h for h in generar_horarios_disponibles() if h not in ocupados_reprog]
                         
