@@ -3,7 +3,7 @@ import streamlit as st
 import requests
 
 # 🌐 PEGA AQUÍ LA URL DE TU GOOGLE APPS SCRIPT
-WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyVRhXYs4SA3LJRwQKuLaPG3OOxmJk1VMxlZUToTNOEF8Ml0DxYg5niZQW8RQ4kvDm5zg/exec"
+WEB_APP_URL = "TU_URL_DE_APPS_SCRIPT_AQUI"
 
 def formatear_fecha_amigable(fecha_str):
     """Convierte '2026-10-29T03:00:00.000Z' o '2026-10-29' en 'Miércoles, 29 de octubre de 2026'"""
@@ -24,30 +24,20 @@ def formatear_fecha_amigable(fecha_str):
         return str(fecha_str)
 
 def formatear_hora_amigable(hora_str):
-    """Fuerza a mostrar siempre el formato HH:MM limpio evitando que Google altere las horas"""
+    """Extrae prolijamente el horario HH:MM evitando que Google altere o devuelva la fecha base 1899"""
     if not hora_str:
         return ""
     try:
         s = str(hora_str).strip()
-        # Si viene con formato ISO de Google Sheets tipo '1899-12-30T13:46:48.000Z' o similar, 
-        # a veces Google interpreta mal la zona horaria. Si el usuario seleccionó 08:00, 
-        # busquemos si contiene la hora real o cortemos de forma segura.
+        # Si Google Sheets devuelve formato ISO con la fecha base 1899 (ej: 1899-12-30T08:00:00.000Z)
         if "T" in s:
-            parte_hora = s.split("T")[1].split("Z")[0]
-            partes = parte_hora.split(":")
-            # Forzamos a tomar las horas y minutos limpios
-            if len(partes) >= 2:
-                h = partes[0].zfill(2)
-                m = partes[1].zfill(2)
-                # Ojo: si Google metió una fecha base 1899 con desfase UTC, 
-                # nos quedamos estrictamente con los primeros 5 caracteres si ya es un string corto, 
-                # o tomamos el valor textual si fue guardado prolijamente.
-        
-        # Si el string ya viene limpio como "08:00" o "13:30"
+            parte_hora = s.split("T")[1].replace("Z", "")
+            h, m, *_ = parte_hora.split(":")
+            return f"{h}:{m}"
+        # Si ya viene limpio como "08:00"
         if len(s) >= 5 and s[2] == ':':
             return s[:5]
-            
-        return s[:5] if len(s) >= 5 else s
+        return s
     except Exception:
         return str(hora_str)
 
@@ -146,7 +136,7 @@ if menu == "Solicitar Turno":
                     "motivo": motivo,
                     "detalle": detalle,
                     "fecha": fecha_str,
-                    "hora": str(hora_elegida),  # Forzamos que se guarde estrictamente como texto "HH:MM"
+                    "hora": str(hora_elegida),
                     "asistencia": "Pendiente"
                 }
                 agregar_un_turno(nuevo_turno)
