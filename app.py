@@ -44,10 +44,11 @@ def cargar_datos():
         response = requests.get(WEB_APP_URL)
         if response.ok:
             data = response.json()
-            # Si el JSON viene con la estructura nueva de objetos {turnos, bloqueos}
             if isinstance(data, dict):
-                return data.get("turnos", []), data.get("bloqueos", [])
-            # Compatibilidad por si devuelve lista directa de turnos
+                # Limpiamos y normalizamos los días bloqueados a strings puros "YYYY-MM-DD"
+                bloqueos_crudos = data.get("bloqueos", [])
+                bloqueos_limpios = [str(b).split("T")[0].strip() for b in bloqueos_crudos if b]
+                return data.get("turnos", []), bloqueos_limpios
             elif isinstance(data, list):
                 return data, []
         return [], []
@@ -71,7 +72,6 @@ def agregar_un_turno(nuevo_turno):
         st.error(f"Error al guardar el turno: {e}")
 
 def gestionar_bloqueo_dia(fecha_str, tipo):
-    """Envía la orden de bloquear o desbloquear un día"""
     try:
         payload = {
             "action": "toggle_bloqueo",
@@ -111,13 +111,13 @@ if menu == "Solicitar Turno":
     st.subheader("📝 Nuevo Pedido de Audiencia")
     
     fecha_seleccionada = st.date_input("Fecha deseada", min_value=datetime.today())
-    fecha_str = str(fecha_seleccionada)
+    fecha_str = str(fecha_seleccionada).strip()
     
-    # Validar si el día está bloqueado
+    # Validar si el día está bloqueado (comparación exacta de strings YYYY-MM-DD)
     if fecha_str in dias_bloqueados:
         st.error(f"🚫 **Atención:** El día **{formatear_fecha_amigable(fecha_str)}** se encuentra **BLOQUEADO** (No hay atención / Viaje de la Presidenta). No es posible asignar turnos.")
     else:
-        horarios_ocupados = [formatear_hora_amigable(t["hora"]) for t in turnos if str(t.get("fecha", "")).split("T")[0] == fecha_str]
+        horarios_ocupados = [formatear_hora_amigable(t["hora"]) for t in turnos if str(t.get("fecha", "")).split("T")[0].strip() == fecha_str]
         todos_los_horarios = generar_horarios_disponibles()
         horarios_libres = [h for h in todos_los_horarios if h not in horarios_ocupados]
         
@@ -340,7 +340,7 @@ elif menu == "🖨️ Imprimir Agenda del Día":
     st.markdown("---")
     
     if fecha_imp_str in dias_bloqueados:
-        st.markdown(f"""
+        html_final = f"""
         <div class="hoja-impresion" style="text-align: center;">
             <h2 style="color: #d9534f;">COMUNA DE LOS REARTES</h2>
             <p style="font-size: 14px; color: #666;">Presidencia Comunal — Agenda de Audiencias</p>
@@ -348,7 +348,8 @@ elif menu == "🖨️ Imprimir Agenda del Día":
             <p style="font-size: 18px;"><strong>Fecha:</strong> {fecha_imp_amigable}</p>
             <h3 style="color: #d9534f; margin-top: 30px;">🚫 ESTE DÍA SE ENCUENTRA BLOQUEADO (SIN ATENCIÓN / VIAJE)</h3>
         </div>
-        """, unsafe_allow_html=True)
+        """
+        st.components.v1.html(html_final, height=600, scrolling=True)
     elif not turnos:
         html_final = f"""
         <div class="hoja-impresion">
