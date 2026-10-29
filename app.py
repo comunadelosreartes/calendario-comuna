@@ -1,7 +1,6 @@
 from datetime import datetime, time, timedelta
 import streamlit as st
 import requests
-import textwrap
 
 # 🌐 PEGA AQUÍ LA URL DE TU GOOGLE APPS SCRIPT
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyVRhXYs4SA3LJRwQKuLaPG3OOxmJk1VMxlZUToTNOEF8Ml0DxYg5niZQW8RQ4kvDm5zg/exec"
@@ -219,7 +218,7 @@ elif menu == "Calendario / Turnos Tomados":
             st.markdown("---")
 
 elif menu == "🖨️ Imprimir Agenda del Día":
-    # CSS especial para ocultar la barra lateral y elementos de la app al imprimir
+    # CSS especial para ocultar la barra lateral y elementos al imprimir
     st.markdown("""
         <style>
         @media print {
@@ -255,7 +254,7 @@ elif menu == "🖨️ Imprimir Agenda del Día":
     st.markdown("---")
     
     if not turnos:
-        html_code = f"""
+        st.markdown(f"""
         <div class="hoja-impresion">
             <h2 style="text-align: center; margin-bottom: 0; color: #111;">COMUNA DE LOS REARTES</h2>
             <p style="text-align: center; font-size: 14px; color: #666; margin-top: 5px;">Presidencia Comunal — Agenda de Audiencias</p>
@@ -263,37 +262,15 @@ elif menu == "🖨️ Imprimir Agenda del Día":
             <p style="font-size: 16px;"><strong>Fecha:</strong> {fecha_imp_amigable}</p>
             <p style="color: #888;">No hay turnos registrados en el sistema.</p>
         </div>
-        """
+        """, unsafe_allow_html=True)
     else:
         turnos_dia = [t for t in turnos if str(t.get('fecha', '')).split('T')[0] == fecha_imp_str]
         turnos_dia_ordenados = sorted(turnos_dia, key=lambda x: str(x.get('hora', '')))
         
-        html_code = f"""
-        <div class="hoja-impresion">
-            <h2 style="text-align: center; margin-bottom: 0; color: #111;">COMUNA DE LOS REARTES</h2>
-            <p style="text-align: center; font-size: 14px; color: #666; margin-top: 5px;">Presidencia Comunal — Agenda de Audiencias</p>
-            <hr style="border: 1px solid #333; margin: 20px 0;">
-            <p style="font-size: 16px;"><strong>Fecha:</strong> {fecha_imp_amigable}</p>
-            <p style="font-size: 16px;"><strong>Total de audiencias programadas:</strong> {len(turnos_dia_ordenados)}</p>
-            <br>
-        """
-        
+        filas_html = ""
         if not turnos_dia_ordenados:
-            html_code += "<p style='color: #888;'>No hay audiencias programadas para esta fecha.</p></div>"
+            filas_html = "<tr><td colspan='4' style='text-align: center; padding: 20px; color: #666;'>No hay audiencias programadas para esta fecha.</td></tr>"
         else:
-            html_code += """
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px;">
-                <thead>
-                    <tr style="background-color: #f2f2f2; border-bottom: 2px solid #333;">
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: center; width: 15%;">Hora</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left; width: 30%;">Vecino / DNI / Teléfono</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left; width: 35%;">Motivo / Detalle</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: center; width: 20%;">Asistencia</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
-            
             for t in turnos_dia_ordenados:
                 hora_limpia = formatear_hora_amigable(t.get('hora', ''))
                 nombre = t.get('nombre', '')
@@ -302,7 +279,7 @@ elif menu == "🖨️ Imprimir Agenda del Día":
                 motivo = t.get('motivo', '')
                 detalle = t.get('detalle', 'Sin detalles')
                 
-                html_code += f"""
+                filas_html += f"""
                     <tr style="border-bottom: 1px solid #ddd;">
                         <td style="border: 1px solid #ddd; padding: 10px; text-align: center; font-weight: bold; font-size: 15px;">{hora_limpia} hs</td>
                         <td style="border: 1px solid #ddd; padding: 10px;">
@@ -318,13 +295,33 @@ elif menu == "🖨️ Imprimir Agenda del Día":
                         </td>
                     </tr>
                 """
-            
-            html_code += """
+
+        st.markdown(f"""
+        <div class="hoja-impresion">
+            <h2 style="text-align: center; margin-bottom: 0; color: #111;">COMUNA DE LOS REARTES</h2>
+            <p style="text-align: center; font-size: 14px; color: #666; margin-top: 5px;">Presidencia Comunal — Agenda de Audiencias</p>
+            <hr style="border: 1px solid #333; margin: 20px 0;">
+            <p style="font-size: 16px;"><strong>Fecha:</strong> {fecha_imp_amigable}</p>
+            <p style="font-size: 16px;"><strong>Total de audiencias programadas:</strong> {len(turnos_dia_ordenados)}</p>
+            <br>
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px;">
+                <thead>
+                    <tr style="background-color: #f2f2f2; border-bottom: 2px solid #333;">
+                        <th style="border: 1px solid #ddd; padding: 10px; text-align: center; width: 15%;">Hora</th>
+                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left; width: 30%;">Vecino / DNI / Teléfono</th>
+                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left; width: 35%;">Motivo / Detalle</th>
+                        <th style="border: 1px solid #ddd; padding: 10px; text-align: center; width: 20%;">Asistencia</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {filas_html}
                 </tbody>
             </table>
-            </div>
-            """
+        </div>
+        """, unsafe_allow_html=True)
             
+    st.markdown("---")
+    st.info("💡 **Para imprimir:** Presioná **Ctrl + P** en tu teclado. El sistema ocultará automáticamente los menús y dejará solo la planilla prolija lista para la impresora o PDF.")
     st.markdown(textwrap.dedent(html_code), unsafe_allow_html=True)
     st.markdown("---")
     st.info("💡 **Para imprimir:** Presioná **Ctrl + P** en tu teclado. El sistema ocultará automáticamente los menús y dejará solo la planilla prolija lista para la impresora o PDF.")
