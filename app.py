@@ -1,19 +1,65 @@
 from datetime import datetime, time, timedelta
-import json
-import os
 import streamlit as st
+import gspread
+from google.oauth2.service_account import Credentials
 
-DB_FILE = "turnos.json"
+# --- CONFIGURACIÓN E INTEGRACIÓN CON GOOGLE SHEETS ---
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+
+@st.cache_resource
+def conectar_gsheets():
+    credentials = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=SCOPES
+    )
+    gc = gspread.authorize(credentials)
+    # Nombre exacto de la planilla que creaste en tu Google Drive
+    sh = gc.open("Base_Turnos_Comuna")
+    return sh.sheet1
+
+try:
+    sheet = conectar_gsheets()
+except Exception as e:
+    st.error("Error al conectar con Google Sheets. Revisa la configuración de Secrets y el nombre de la planilla.")
 
 def cargar_turnos():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+    try:
+        return sheet.get_all_records()
+    except Exception:
+        return []
 
-def guardar_turnos(turnos):
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(turnos, f, ensure_ascii=False, indent=4)
+def guardar_turnos_completo(turnos):
+    sheet.clear()
+    cabeceras = ["fecha", "hora", "nombre", "dni", "telefono", "motivo", "detalle", "asistencia"]
+    filas = [cabeceras]
+    for t in turnos:
+        filas.append([
+            str(t.get("fecha", "")),
+            str(t.get("hora", "")),
+            str(t.get("nombre", "")),
+            str(t.get("dni", "")),
+            str(t.get("telefono", "")),
+            str(t.get("motivo", "")),
+            str(t.get("detalle", "")),
+            str(t.get("asistencia", "Pendiente"))
+        ])
+    sheet.update(filas)
+
+def agregar_un_turno(nuevo_turno):
+    fila = [
+        str(nuevo_turno.get("fecha", "")),
+        str(nuevo_turno.get("hora", "")),
+        str(nuevo_turno.get("nombre", "")),
+        str(nuevo_turno.get("dni", "")),
+        str(nuevo_turno.get("telefono", "")),
+        str(nuevo_turno.get("motivo", "")),
+        str(nuevo_turno.get("detalle", "")),
+        str(nuevo_turno.get("asistencia", "Pendiente"))
+    ]
+    sheet.append_row(fila)
 
 def generar_horarios_disponibles():
     horarios = []
@@ -27,6 +73,7 @@ def generar_horarios_disponibles():
         actual += timedelta(minutes=30)
     return horarios
 
+# --- INTERFAZ GRAFICA ---
 st.title("🏛️ Gestión de Turnos - Presidencia Comunal")
 st.write("Sistema de turnos y audiencias con la presidenta.")
 
@@ -39,9 +86,7 @@ if menu == "Solicitar Turno":
     fecha_seleccionada = st.date_input("Fecha deseada", min_value=datetime.today())
     fecha_str = str(fecha_seleccionada)
     
-    # Filtrar turnos ya ocupados para la fecha elegida
-    horarios_ocupados = [t["hora"] for t in turnos if t.get("fecha") == fecha_str]
-    
+    horarios_ocupados = [str(t["hora"]) for t in turnos if str(t.get("fecha")) == fecha_str]
     todos_los_horarios = generar_horarios_disponibles()
     horarios_libres = [h for h in todos_los_horarios if h not in horarios_ocupados]
     
@@ -87,10 +132,9 @@ if menu == "Solicitar Turno":
                     "detalle": detalle,
                     "fecha": fecha_str,
                     "hora": hora_elegida,
-                    "asistencia": "Pendiente" # <--- Estado inicial de asistencia
+                    "asistencia": "Pendiente"
                 }
-                turnos.append(nuevo_turno)
-                guardar_turnos(turnos)
+                agregar_un_turno(nuevo_turno)
                 st.success(f"¡Turno confirmado para el {fecha_str} a las {hora_elegida} hs!")
                 st.rerun()
             else:
@@ -102,17 +146,16 @@ elif menu == "Calendario / Turnos Tomados":
     if not turnos:
         st.info("No hay turnos registrados por el momento.")
     else:
-        turnos_ordenados = sorted(turnos, key=lambda x: (x['fecha'], x['hora']))
-        fechas_unicas = sorted(list(set(t['fecha'] for t in turnos_ordenados)))
+        turnos_ordenados = sorted(turnos, key=lambda x: (str(x['fecha']), str(x['hora'])))
+        fechas_unicas = sorted(list(set(str(t['fecha']) for t in turnos_ordenados)))
         
         for fecha in fechas_unicas:
             st.markdown(f"### 🗓️ Día: {fecha}")
-            turnos_del_dia = [t for t in turnos_ordenados if t['fecha'] == fecha]
+            turnos_del_dia = [t for t in turnos_ordenados if str(t['fecha']) == fecha]
             
             for t in turnos_del_dia:
                 idx_real = turnos.index(t)
                 
-                # Definir un emoji indicador según la asistencia
                 estado_asis = t.get('asistencia', 'Pendiente')
                 icono_estado = "⏳"
                 if estado_asis == "Presente":
@@ -126,31 +169,28 @@ elif menu == "Calendario / Turnos Tomados":
                     st.write(f"**Detalle del tema:** {t['detalle']}")
                     st.write(f"**Asistencia:** {estado_asis}")
                     
-                    # 1. Botones para marcar asistencia
                     st.markdown("---")
                     st.markdown("##### 📌 Control de Asistencia")
                     col_a1, col_a2 = st.columns(2)
                     with col_a1:
                         if st.button("🟢 Marcar Presente", key=f"pres_{idx_real}"):
                             turnos[idx_real]["asistencia"] = "Presente"
-                            guardar_turnos(turnos)
+                            guardar_turnos_completo(turnos)
                             st.rerun()
                     with col_a2:
                         if st.button("🔴 Marcar Ausente", key=f"aus_{idx_real}"):
                             turnos[idx_real]["asistencia"] = "Ausente"
-                            guardar_turnos(turnos)
+                            guardar_turnos_completo(turnos)
                             st.rerun()
                             
-                    # 2. Sección para Reprogramar el turno sin borrarlo
                     st.markdown("---")
                     with st.expander("🔄 Reprogramar este turno"):
                         nueva_fecha_input = st.date_input("Nueva Fecha", min_value=datetime.today(), key=f"n_fec_{idx_real}")
                         nueva_fecha_str = str(nueva_fecha_input)
                         
-                        # Buscar horarios ocupados en la nueva fecha (excluyendo este mismo turno si fuera el mismo día)
                         ocupados_reprog = [
-                            item["hora"] for i_item, item in enumerate(turnos) 
-                            if item.get("fecha") == nueva_fecha_str and i_item != idx_real
+                            str(item["hora"]) for i_item, item in enumerate(turnos) 
+                            if str(item.get("fecha")) == nueva_fecha_str and i_item != idx_real
                         ]
                         libres_reprog = [h for h in generar_horarios_disponibles() if h not in ocupados_reprog]
                         
@@ -159,18 +199,17 @@ elif menu == "Calendario / Turnos Tomados":
                             if st.button("Confirmar Reprogramación", key=f"btn_conf_reprog_{idx_real}"):
                                 turnos[idx_real]["fecha"] = nueva_fecha_str
                                 turnos[idx_real]["hora"] = nueva_hora_sel
-                                turnos[idx_real]["asistencia"] = "Pendiente" # Vuelve a pendiente al reprogramar
-                                guardar_turnos(turnos)
+                                turnos[idx_real]["asistencia"] = "Pendiente"
+                                guardar_turnos_completo(turnos)
                                 st.success("¡Turno reprogramado con éxito!")
                                 st.rerun()
                         else:
                             st.warning("No hay horarios libres en esa fecha.")
 
-                    # 3. Botón para cancelar / eliminar el turno
                     st.markdown("---")
                     if st.button("🗑️ Cancelar / Eliminar Turno", key=f"cancelar_{idx_real}"):
                         turnos.pop(idx_real)
-                        guardar_turnos(turnos)
+                        guardar_turnos_completo(turnos)
                         st.rerun()
                         
             st.markdown("---")
