@@ -322,6 +322,4 @@ elif menu == "🖨️ Imprimir Agenda del Día":
             
     st.markdown("---")
     st.info("💡 **Para imprimir:** Presioná **Ctrl + P** en tu teclado. El sistema ocultará automáticamente los menús y dejará solo la planilla prolija lista para la impresora o PDF.")
-    st.markdown(textwrap.dedent(html_code), unsafe_allow_html=True)
-    st.markdown("---")
     st.info("💡 **Para imprimir:** Presioná **Ctrl + P** en tu teclado. El sistema ocultará automáticamente los menús y dejará solo la planilla prolija lista para la impresora o PDF.")
