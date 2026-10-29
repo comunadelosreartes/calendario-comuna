@@ -24,33 +24,35 @@ def formatear_fecha_amigable(fecha_str):
         return str(fecha_str)
 
 def formatear_hora_amigable(hora_str):
-    """Toma la hora tal cual viene de la base de datos de forma limpia y directa"""
     if not hora_str:
         return ""
     try:
         s = str(hora_str).strip()
-        # Si por alguna razón viene en formato ISO de Google, extraemos la hora y minutos
         if "T" in s and ":" in s:
             parte_hora = s.split("T")[1].replace("Z", "")
             h, m, *_ = parte_hora.split(":")
             return f"{h}:{m}"
-        
-        # Si ya viene como string plano ("10:30" o similar)
         if len(s) >= 5:
             return s[:5]
-            
         return s
     except Exception:
         return str(hora_str)
 
-def cargar_turnos():
+def cargar_datos():
+    """Carga tanto los turnos como los días bloqueados desde la API"""
     try:
         response = requests.get(WEB_APP_URL)
         if response.ok:
-            return response.json()
-        return []
+            data = response.json()
+            # Si el JSON viene con la estructura nueva de objetos {turnos, bloqueos}
+            if isinstance(data, dict):
+                return data.get("turnos", []), data.get("bloqueos", [])
+            # Compatibilidad por si devuelve lista directa de turnos
+            elif isinstance(data, list):
+                return data, []
+        return [], []
     except Exception:
-        return []
+        return [], []
 
 def guardar_turnos_completo(turnos):
     try:
@@ -68,6 +70,18 @@ def agregar_un_turno(nuevo_turno):
     except Exception as e:
         st.error(f"Error al guardar el turno: {e}")
 
+def gestionar_bloqueo_dia(fecha_str, tipo):
+    """Envía la orden de bloquear o desbloquear un día"""
+    try:
+        payload = {
+            "action": "toggle_bloqueo",
+            "fecha": fecha_str,
+            "tipo": tipo
+        }
+        requests.post(WEB_APP_URL, json=payload)
+    except Exception as e:
+        st.error(f"Error al modificar el bloqueo del día: {e}")
+
 def generar_horarios_disponibles():
     horarios = []
     inicio = time(8, 0)
@@ -84,8 +98,14 @@ def generar_horarios_disponibles():
 st.title("🏛️ Gestión de Turnos - Presidencia Comunal")
 st.write("Sistema de turnos y audiencias con la presidenta.")
 
-turnos = cargar_turnos()
-menu = st.sidebar.selectbox("Menú", ["Solicitar Turno", "Calendario / Turnos Tomados", "🖨️ Imprimir Agenda del Día"])
+turnos, dias_bloqueados = cargar_datos()
+
+menu = st.sidebar.selectbox("Menú", [
+    "Solicitar Turno", 
+    "Calendario / Turnos Tomados", 
+    "🔒 Bloquear / Desbloquear Días", 
+    "🖨️ Imprimir Agenda del Día"
+])
 
 if menu == "Solicitar Turno":
     st.subheader("📝 Nuevo Pedido de Audiencia")
@@ -93,62 +113,70 @@ if menu == "Solicitar Turno":
     fecha_seleccionada = st.date_input("Fecha deseada", min_value=datetime.today())
     fecha_str = str(fecha_seleccionada)
     
-    horarios_ocupados = [formatear_hora_amigable(t["hora"]) for t in turnos if str(t.get("fecha", "")).split("T")[0] == fecha_str]
-    todos_los_horarios = generar_horarios_disponibles()
-    horarios_libres = [h for h in todos_los_horarios if h not in horarios_ocupados]
-    
-    st.markdown("---")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**🟢 Horarios Disponibles:**")
-        if horarios_libres:
-            st.write(", ".join(horarios_libres))
-        else:
-            st.warning("No hay turnos libres para esta fecha.")
-            
-    with col2:
-        st.markdown("**🔴 Horarios Ocupados:**")
-        if horarios_ocupados:
-            st.write(", ".join(horarios_ocupados))
-        else:
-            st.info("Ningún turno ocupado aún.")
-    st.markdown("---")
-    
-    with st.form("form_turno", clear_on_submit=True):
-        nombre = st.text_input("Nombre y Apellido")
-        dni = st.text_input("DNI")
-        telefono = st.text_input("Número Telefónico (Ej: 3546...)")
-        motivo = st.selectbox("Motivo de la reunión", ["Obras Públicas", "Acción Social", "Audiencia General", "Reclamos Varios"])
-        detalle = st.text_area("Breve detalle del tema")
+    # Validar si el día está bloqueado
+    if fecha_str in dias_bloqueados:
+        st.error(f"🚫 **Atención:** El día **{formatear_fecha_amigable(fecha_str)}** se encuentra **BLOQUEADO** (No hay atención / Viaje de la Presidenta). No es posible asignar turnos.")
+    else:
+        horarios_ocupados = [formatear_hora_amigable(t["hora"]) for t in turnos if str(t.get("fecha", "")).split("T")[0] == fecha_str]
+        todos_los_horarios = generar_horarios_disponibles()
+        horarios_libres = [h for h in todos_los_horarios if h not in horarios_ocupados]
         
-        if horarios_libres:
-            hora_elegida = st.selectbox("Seleccionar Hora (Bloques de 30 min)", horarios_libres)
-        else:
-            hora_elegida = None
-            st.error("Seleccione otra fecha, no quedan horarios disponibles.")
-        
-        enviado = st.form_submit_button("Confirmar Turno")
-        
-        if enviado:
-            if nombre and dni and telefono and hora_elegida:
-                nuevo_turno = {
-                    "nombre": nombre,
-                    "dni": dni,
-                    "telefono": telefono,
-                    "motivo": motivo,
-                    "detalle": detalle,
-                    "fecha": fecha_str,
-                    "hora": str(hora_elegida),
-                    "asistencia": "Pendiente"
-                }
-                agregar_un_turno(nuevo_turno)
-                st.success(f"¡Turno confirmado para el {fecha_str} a las {hora_elegida} hs!")
-                st.rerun()
+        st.markdown("---")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**🟢 Horarios Disponibles:**")
+            if horarios_libres:
+                st.write(", ".join(horarios_libres))
             else:
-                st.error("Por favor, completá todos los campos obligatorios.")
+                st.warning("No hay turnos libres para esta fecha.")
+                
+        with col2:
+            st.markdown("**🔴 Horarios Ocupados:**")
+            if horarios_ocupados:
+                st.write(", ".join(horarios_ocupados))
+            else:
+                st.info("Ningún turno ocupado aún.")
+        st.markdown("---")
+        
+        with st.form("form_turno", clear_on_submit=True):
+            nombre = st.text_input("Nombre y Apellido")
+            dni = st.text_input("DNI")
+            telefono = st.text_input("Número Telefónico (Ej: 3546...)")
+            motivo = st.selectbox("Motivo de la reunión", ["Obras Públicas", "Acción Social", "Audiencia General", "Reclamos Varios"])
+            detalle = st.text_area("Breve detalle del tema")
+            
+            if horarios_libres:
+                hora_elegida = st.selectbox("Seleccionar Hora (Bloques de 30 min)", horarios_libres)
+            else:
+                hora_elegida = None
+                st.error("Seleccione otra fecha, no quedan horarios disponibles.")
+            
+            enviado = st.form_submit_button("Confirmar Turno")
+            
+            if enviado:
+                if nombre and dni and telefono and hora_elegida:
+                    nuevo_turno = {
+                        "nombre": nombre,
+                        "dni": dni,
+                        "telefono": telefono,
+                        "motivo": motivo,
+                        "detalle": detalle,
+                        "fecha": fecha_str,
+                        "hora": str(hora_elegida),
+                        "asistencia": "Pendiente"
+                    }
+                    agregar_un_turno(nuevo_turno)
+                    st.success(f"¡Turno confirmado para el {fecha_str} a las {hora_elegida} hs!")
+                    st.rerun()
+                else:
+                    st.error("Por favor, completá todos los campos obligatorios.")
 
 elif menu == "Calendario / Turnos Tomados":
     st.subheader("📅 Agenda de Turnos Registrados")
+    
+    if dias_bloqueados:
+        st.info("🔒 **Días actualmente bloqueados sin atención:** " + ", ".join([formatear_fecha_amigable(d) for d in sorted(dias_bloqueados)]))
+        st.markdown("---")
     
     if not turnos:
         st.info("No hay turnos registrados por el momento.")
@@ -158,7 +186,9 @@ elif menu == "Calendario / Turnos Tomados":
         
         for fecha_iso in fechas_unicas:
             fecha_amigable = formatear_fecha_amigable(fecha_iso)
-            st.markdown(f"### 🗓️ {fecha_amigable}")
+            aviso_bloqueo = " 🚫 [DÍA BLOQUEADO]" if fecha_iso in dias_bloqueados else ""
+            st.markdown(f"### 🗓️ {fecha_amigable}{aviso_bloqueo}")
+            
             turnos_del_dia = [t for t in turnos_ordenados if str(t.get('fecha', '')).split('T')[0] == fecha_iso]
             
             for t in turnos_del_dia:
@@ -197,23 +227,26 @@ elif menu == "Calendario / Turnos Tomados":
                         nueva_fecha_input = st.date_input("Nueva Fecha", min_value=datetime.today(), key=f"n_fec_{idx_real}")
                         nueva_fecha_str = str(nueva_fecha_input)
                         
-                        ocupados_reprog = [
-                            formatear_hora_amigable(item.get("hora", "")) for i_item, item in enumerate(turnos) 
-                            if str(item.get("fecha", "")).split("T")[0] == nueva_fecha_str and i_item != idx_real
-                        ]
-                        libres_reprog = [h for h in generar_horarios_disponibles() if h not in ocupados_reprog]
-                        
-                        if libres_reprog:
-                            nueva_hora_sel = st.selectbox("Nuevo Horario disponible", libres_reprog, key=f"n_hora_{idx_real}")
-                            if st.button("Confirmar Reprogramación", key=f"btn_conf_reprog_{idx_real}"):
-                                turnos[idx_real]["fecha"] = nueva_fecha_str
-                                turnos[idx_real]["hora"] = str(nueva_hora_sel)
-                                turnos[idx_real]["asistencia"] = "Pendiente"
-                                guardar_turnos_completo(turnos)
-                                st.success("¡Turno reprogramado con éxito!")
-                                st.rerun()
+                        if nueva_fecha_str in dias_bloqueados:
+                            st.warning("⚠️ La fecha seleccionada está bloqueada. Elija otra.")
                         else:
-                            st.warning("No hay horarios libres en esa fecha.")
+                            ocupados_reprog = [
+                                formatear_hora_amigable(item.get("hora", "")) for i_item, item in enumerate(turnos) 
+                                if str(item.get("fecha", "")).split("T")[0] == nueva_fecha_str and i_item != idx_real
+                            ]
+                            libres_reprog = [h for h in generar_horarios_disponibles() if h not in ocupados_reprog]
+                            
+                            if libres_reprog:
+                                nueva_hora_sel = st.selectbox("Nuevo Horario disponible", libres_reprog, key=f"n_hora_{idx_real}")
+                                if st.button("Confirmar Reprogramación", key=f"btn_conf_reprog_{idx_real}"):
+                                    turnos[idx_real]["fecha"] = nueva_fecha_str
+                                    turnos[idx_real]["hora"] = str(nueva_hora_sel)
+                                    turnos[idx_real]["asistencia"] = "Pendiente"
+                                    guardar_turnos_completo(turnos)
+                                    st.success("¡Turno reprogramado con éxito!")
+                                    st.rerun()
+                            else:
+                                st.warning("No hay horarios libres en esa fecha.")
 
                     st.markdown("---")
                     if st.button("🗑️ Cancelar / Eliminar Turno", key=f"cancelar_{idx_real}"):
@@ -222,6 +255,53 @@ elif menu == "Calendario / Turnos Tomados":
                         st.rerun()
                         
             st.markdown("---")
+
+elif menu == "🔒 Bloquear / Desbloquear Días":
+    st.subheader("🔒 Gestión de Días Bloqueados (Viajes / Sin Atención)")
+    st.write("Seleccioná una fecha para bloquearla o desbloquearla de la agenda de turnos.")
+    
+    col_b1, col_b2 = st.columns(2)
+    with col_b1:
+        fecha_bloqueo_input = st.date_input("Fecha a gestionar", min_value=datetime.today(), key="input_bloqueo")
+        fecha_bloq_str = str(fecha_bloqueo_input)
+        fecha_bloq_amigable = formatear_fecha_amigable(fecha_bloq_str)
+        
+    with col_b2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        esta_bloqueado = fecha_bloq_str in dias_bloqueados
+        if esta_bloqueado:
+            st.error(f"Estado actual: **BLOQUEADO** 🚫")
+        else:
+            st.success(f"Estado actual: **DISPONIBLE** ✅")
+            
+    st.markdown("---")
+    
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        if not esta_bloqueado:
+            if st.button("🔒 Bloquear este día", type="primary"):
+                gestionar_bloqueo_dia(fecha_bloq_str, "bloquear")
+                st.success(f"¡El día {fecha_bloq_amigable} fue bloqueado con éxito!")
+                st.rerun()
+        else:
+            st.info("El día ya se encuentra bloqueado.")
+            
+    with col_btn2:
+        if esta_bloqueado:
+            if st.button("🔓 Desbloquear (Habilitar día)", type="secondary"):
+                gestionar_bloqueo_dia(fecha_bloq_str, "desbloquear")
+                st.success(f"¡El día {fecha_bloq_amigable} fue habilitado nuevamente!")
+                st.rerun()
+        else:
+            st.info("El día ya se encuentra habilitado.")
+            
+    st.markdown("---")
+    st.markdown("### 📋 Listado de Días Bloqueados Activos")
+    if dias_bloqueados:
+        for d in sorted(dias_bloqueados):
+            st.write(f"• **{formatear_fecha_amigable(d)}** (`{d}`)")
+    else:
+        st.info("No hay días bloqueados actualmente.")
 
 elif menu == "🖨️ Imprimir Agenda del Día":
     st.markdown("""
@@ -259,7 +339,17 @@ elif menu == "🖨️ Imprimir Agenda del Día":
     
     st.markdown("---")
     
-    if not turnos:
+    if fecha_imp_str in dias_bloqueados:
+        st.markdown(f"""
+        <div class="hoja-impresion" style="text-align: center;">
+            <h2 style="color: #d9534f;">COMUNA DE LOS REARTES</h2>
+            <p style="font-size: 14px; color: #666;">Presidencia Comunal — Agenda de Audiencias</p>
+            <hr style="border: 1px solid #333; margin: 20px 0;">
+            <p style="font-size: 18px;"><strong>Fecha:</strong> {fecha_imp_amigable}</p>
+            <h3 style="color: #d9534f; margin-top: 30px;">🚫 ESTE DÍA SE ENCUENTRA BLOQUEADO (SIN ATENCIÓN / VIAJE)</h3>
+        </div>
+        """, unsafe_allow_html=True)
+    elif not turnos:
         html_final = f"""
         <div class="hoja-impresion">
             <h2 style="text-align: center; margin-bottom: 0; color: #111;">COMUNA DE LOS REARTES</h2>
@@ -269,6 +359,7 @@ elif menu == "🖨️ Imprimir Agenda del Día":
             <p style="color: #888;">No hay turnos registrados en el sistema.</p>
         </div>
         """
+        st.components.v1.html(html_final, height=600, scrolling=True)
     else:
         turnos_dia = [t for t in turnos if str(t.get('fecha', '')).split('T')[0] == fecha_imp_str]
         turnos_dia_ordenados = sorted(turnos_dia, key=lambda x: str(x.get('hora', '')))
@@ -325,8 +416,7 @@ elif menu == "🖨️ Imprimir Agenda del Día":
             </table>
         </div>
         """
-
-    st.components.v1.html(html_final, height=600, scrolling=True)
+        st.components.v1.html(html_final, height=600, scrolling=True)
             
     st.markdown("---")
     st.info("💡 **Para imprimir:** Presioná **Ctrl + P** en tu teclado. El sistema ocultará automáticamente los menús y dejará solo la planilla prolija lista para la impresora o PDF.")
