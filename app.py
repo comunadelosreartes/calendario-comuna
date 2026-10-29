@@ -302,7 +302,38 @@ elif menu == "🖨️ Imprimir Agenda del Día":
                     </td>
                     <td style="border: 1px solid #ddd; padding: 10px;">
                         <strong>{motivo}</strong><br>
-                        <span style="font-size: 12px; color: #5puro sin que Markdown lo interprete mal
+                        <span style="font-size: 12px; color: #555;">{detalle}</span>
+                    </td>
+                    <td style="border: 1px solid #ddd; padding: 10px; text-align: center; font-size: 12px;">
+                        [ &nbsp; ] Presente<br>[ &nbsp; ] Ausente
+                    </td>
+                </tr>
+                """
+
+        html_final = f"""
+        <div class="hoja-impresion">
+            <h2 style="text-align: center; margin-bottom: 0; color: #111;">COMUNA DE LOS REARTES</h2>
+            <p style="text-align: center; font-size: 14px; color: #666; margin-top: 5px;">Presidencia Comunal — Agenda de Audiencias</p>
+            <hr style="border: 1px solid #333; margin: 20px 0;">
+            <p style="font-size: 16px;"><strong>Fecha:</strong> {fecha_imp_amigable}</p>
+            <p style="font-size: 16px;"><strong>Total de audiencias programadas:</strong> {len(turnos_dia_ordenados)}</p>
+            <br>
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px;">
+                <thead>
+                    <tr style="background-color: #f2f2f2; border-bottom: 2px solid #333;">
+                        <th style="border: 1px solid #ddd; padding: 10px; text-align: center; width: 15%;">Hora</th>
+                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left; width: 30%;">Vecino / DNI / Teléfono</th>
+                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left; width: 35%;">Motivo / Detalle</th>
+                        <th style="border: 1px solid #ddd; padding: 10px; text-align: center; width: 20%;">Asistencia</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {filas_html}
+                </tbody>
+            </table>
+        </div>
+        """
+
     st.components.v1.html(html_final, height=600, scrolling=True)
             
     st.markdown("---")
