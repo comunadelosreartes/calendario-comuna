@@ -65,7 +65,7 @@ if menu == "Solicitar Turno":
     with st.form("form_turno", clear_on_submit=True):
         nombre = st.text_input("Nombre y Apellido")
         dni = st.text_input("DNI")
-        telefono = st.text_input("Número Telefónico (Ej: 3546...)") # <--- NUEVO CAMPO
+        telefono = st.text_input("Número Telefónico (Ej: 3546...)")
         motivo = st.selectbox("Motivo de la reunión", ["Obras Públicas", "Acción Social", "Audiencia General", "Reclamos Varios"])
         detalle = st.text_area("Breve detalle del tema")
         
@@ -82,19 +82,19 @@ if menu == "Solicitar Turno":
                 nuevo_turno = {
                     "nombre": nombre,
                     "dni": dni,
-                    "telefono": telefono, # <--- GUARDAMOS EL TELÉFONO
+                    "telefono": telefono,
                     "motivo": motivo,
                     "detalle": detalle,
                     "fecha": fecha_str,
                     "hora": hora_elegida,
-                    "estado": "Pendiente"
+                    "asistencia": "Pendiente" # <--- Estado inicial de asistencia
                 }
                 turnos.append(nuevo_turno)
                 guardar_turnos(turnos)
                 st.success(f"¡Turno confirmado para el {fecha_str} a las {hora_elegida} hs!")
                 st.rerun()
             else:
-                st.error("Por favor, completá todos los campos obligatorios (incluyendo el teléfono).")
+                st.error("Por favor, completá todos los campos obligatorios.")
 
 elif menu == "Calendario / Turnos Tomados":
     st.subheader("📅 Agenda de Turnos Registrados")
@@ -112,23 +112,65 @@ elif menu == "Calendario / Turnos Tomados":
             for t in turnos_del_dia:
                 idx_real = turnos.index(t)
                 
-                with st.expander(f"⏰ {t['hora']} hs — **{t['nombre']}** ({t['motivo']})"):
+                # Definir un emoji indicador según la asistencia
+                estado_asis = t.get('asistencia', 'Pendiente')
+                icono_estado = "⏳"
+                if estado_asis == "Presente":
+                    icono_estado = "✅"
+                elif estado_asis == "Ausente":
+                    icono_estado = "❌"
+                
+                with st.expander(f"{icono_estado} {t['hora']} hs — **{t['nombre']}** ({t['motivo']}) [{estado_asis}]"):
                     st.write(f"**DNI:** {t['dni']}")
-                    # Usamos .get por si algún turno viejo no tenía teléfono cargado
-                    st.write(f"**Teléfono:** {t.get('telefono', 'No especificado')}") # <--- SE MUESTRA EN EL PANEL
+                    st.write(f"**Teléfono:** {t.get('telefono', 'No especificado')}")
                     st.write(f"**Detalle del tema:** {t['detalle']}")
-                    st.write(f"**Estado:** {t['estado']}")
+                    st.write(f"**Asistencia:** {estado_asis}")
                     
-                    col_btn1, col_btn2 = st.columns(2)
-                    with col_btn1:
-                        if t['estado'] != "Aprobado":
-                            if st.button("Aprobar Turno", key=f"aprobar_{idx_real}"):
-                                turnos[idx_real]["estado"] = "Aprobado"
-                                guardar_turnos(turnos)
-                                st.rerun()
-                    with col_btn2:
-                        if st.button("Cancelar / Eliminar Turno", key=f"cancelar_{idx_real}"):
-                            turnos.pop(idx_real)
+                    # 1. Botones para marcar asistencia
+                    st.markdown("---")
+                    st.markdown("##### 📌 Control de Asistencia")
+                    col_a1, col_a2 = st.columns(2)
+                    with col_a1:
+                        if st.button("🟢 Marcar Presente", key=f"pres_{idx_real}"):
+                            turnos[idx_real]["asistencia"] = "Presente"
                             guardar_turnos(turnos)
                             st.rerun()
+                    with col_a2:
+                        if st.button("🔴 Marcar Ausente", key=f"aus_{idx_real}"):
+                            turnos[idx_real]["asistencia"] = "Ausente"
+                            guardar_turnos(turnos)
+                            st.rerun()
+                            
+                    # 2. Sección para Reprogramar el turno sin borrarlo
+                    st.markdown("---")
+                    with st.expander("🔄 Reprogramar este turno"):
+                        nueva_fecha_input = st.date_input("Nueva Fecha", min_value=datetime.today(), key=f"n_fec_{idx_real}")
+                        nueva_fecha_str = str(nueva_fecha_input)
+                        
+                        # Buscar horarios ocupados en la nueva fecha (excluyendo este mismo turno si fuera el mismo día)
+                        ocupados_reprog = [
+                            item["hora"] for i_item, item in enumerate(turnos) 
+                            if item.get("fecha") == nueva_fecha_str and i_item != idx_real
+                        ]
+                        libres_reprog = [h for h in generar_horarios_disponibles() if h not in ocupados_reprog]
+                        
+                        if libres_reprog:
+                            nueva_hora_sel = st.selectbox("Nuevo Horario disponible", libres_reprog, key=f"n_hora_{idx_real}")
+                            if st.button("Confirmar Reprogramación", key=f"btn_conf_reprog_{idx_real}"):
+                                turnos[idx_real]["fecha"] = nueva_fecha_str
+                                turnos[idx_real]["hora"] = nueva_hora_sel
+                                turnos[idx_real]["asistencia"] = "Pendiente" # Vuelve a pendiente al reprogramar
+                                guardar_turnos(turnos)
+                                st.success("¡Turno reprogramado con éxito!")
+                                st.rerun()
+                        else:
+                            st.warning("No hay horarios libres en esa fecha.")
+
+                    # 3. Botón para cancelar / eliminar el turno
+                    st.markdown("---")
+                    if st.button("🗑️ Cancelar / Eliminar Turno", key=f"cancelar_{idx_real}"):
+                        turnos.pop(idx_real)
+                        guardar_turnos(turnos)
+                        st.rerun()
+                        
             st.markdown("---")
