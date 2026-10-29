@@ -1,74 +1,34 @@
 from datetime import datetime, time, timedelta
 import streamlit as st
-import gspread
-from google.oauth2.service_account import Credentials
+import requests
 
-# --- CONFIGURACIÓN E INTEGRACIÓN CON GOOGLE SHEETS ---
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
-
-@st.cache_resource
-def conectar_gsheets():
-    # Leemos directamente la sección completa del secret
-    sec = st.secrets["connections.gsheets"]
-    
-    # Armamos las credenciales ignorando campos extraños
-    credentials = Credentials.from_service_account_info(
-        dict(sec),
-        scopes=SCOPES
-    )
-    gc = gspread.authorize(credentials)
-    
-    # Abrimos la planilla directamente por la URL guardada en el secret
-    url_sheet = sec["spreadsheet"]
-    sh = gc.open_by_url(url_sheet)
-    return sh.sheet1
-
-# Manejo seguro de la conexión
-try:
-    sheet = conectar_gsheets()
-except Exception as e:
-    st.error(f"⚠️ Error al conectar con Google Sheets: {e}")
-    st.info("Revisá que en los Secrets de Streamlit esté creada la sección [connections.gsheets] con el campo 'spreadsheet' y las credenciales.")
-    st.stop()
+# 🌐 PEGA AQUÍ LA URL DE TU GOOGLE APPS SCRIPT
+WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyVRhXYs4SA3LJRwQKuLaPG3OOxmJk1VMxlZUToTNOEF8Ml0DxYg5niZQW8RQ4kvDm5zg/exec"
 
 def cargar_turnos():
     try:
-        return sheet.get_all_records()
+        response = requests.get(WEB_APP_URL)
+        if response.ok:
+            return response.json()
+        return []
     except Exception:
         return []
 
 def guardar_turnos_completo(turnos):
-    sheet.clear()
-    cabeceras = ["fecha", "hora", "nombre", "dni", "telefono", "motivo", "detalle", "asistencia"]
-    filas = [cabeceras]
-    for t in turnos:
-        filas.append([
-            str(t.get("fecha", "")),
-            str(t.get("hora", "")),
-            str(t.get("nombre", "")),
-            str(t.get("dni", "")),
-            str(t.get("telefono", "")),
-            str(t.get("motivo", "")),
-            str(t.get("detalle", "")),
-            str(t.get("asistencia", "Pendiente"))
-        ])
-    sheet.update(filas)
+    try:
+        payload = {
+            "action": "update_all",
+            "turnos": turnos
+        }
+        requests.post(WEB_APP_URL, json=payload)
+    except Exception as e:
+        st.error(f"Error al actualizar la base de datos: {e}")
 
 def agregar_un_turno(nuevo_turno):
-    fila = [
-        str(nuevo_turno.get("fecha", "")),
-        str(nuevo_turno.get("hora", "")),
-        str(nuevo_turno.get("nombre", "")),
-        str(nuevo_turno.get("dni", "")),
-        str(nuevo_turno.get("telefono", "")),
-        str(nuevo_turno.get("motivo", "")),
-        str(nuevo_turno.get("detalle", "")),
-        str(nuevo_turno.get("asistencia", "Pendiente"))
-    ]
-    sheet.append_row(fila)
+    try:
+        requests.post(WEB_APP_URL, json=nuevo_turno)
+    except Exception as e:
+        st.error(f"Error al guardar el turno: {e}")
 
 def generar_horarios_disponibles():
     horarios = []
