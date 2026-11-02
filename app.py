@@ -24,16 +24,23 @@ def formatear_fecha_amigable(fecha_str):
         return str(fecha_str)
 
 def formatear_hora_amigable(hora_str):
+    """Normaliza cualquier formato de hora a un estándar estricto HH:MM (ej: 09:00)"""
     if not hora_str:
         return ""
     try:
         s = str(hora_str).strip()
         if "T" in s and ":" in s:
-            parte_hora = s.split("T")[1].replace("Z", "")
-            h, m, *_ = parte_hora.split(":")
+            s = s.split("T")[1].replace("Z", "")
+        
+        partes = s.split(":")
+        if len(partes) >= 2:
+            h = partes[0].zfill(2)
+            m = partes[1].zfill(2)
             return f"{h}:{m}"
+        
         if len(s) >= 5:
             return s[:5]
+            
         return s
     except Exception:
         return str(hora_str)
@@ -46,7 +53,6 @@ def cargar_datos():
             data = response.json()
             if isinstance(data, dict):
                 bloqueos_crudos = data.get("bloqueos", [])
-                # Limpiamos y normalizamos cada fecha bloqueada estrictamente a YYYY-MM-DD
                 bloqueos_limpios = []
                 for b in bloqueos_crudos:
                     if b:
@@ -117,12 +123,24 @@ if menu == "Solicitar Turno":
     fecha_seleccionada = st.date_input("Fecha deseada", min_value=datetime.today())
     fecha_str = fecha_seleccionada.strftime("%Y-%m-%d").strip()
     
-    # Validar si el día está bloqueado (comparación estricta)
+    # Validar si el día está bloqueado
     if fecha_str in dias_bloqueados:
         st.error(f"🚫 **Atención:** El día **{formatear_fecha_amigable(fecha_str)}** se encuentra **BLOQUEADO** (No hay atención / Viaje de la Presidenta). No es posible asignar turnos.")
     else:
-        horarios_ocupados = [formatear_hora_amigable(t["hora"]) for t in turnos if str(t.get("fecha", "")).split("T")[0].strip() == fecha_str]
+        # Extraemos y normalizamos de forma estricta los horarios ocupados del día
+        horarios_ocupados = []
+        for t in turnos:
+            f_turno = str(t.get("fecha", "")).split("T")[0].strip()
+            if f_turno == fecha_str:
+                h_limpia = formatear_hora_amigable(t.get("hora", ""))
+                if h_limpia:
+                    horarios_ocupados.append(h_limpia)
+        
+        # Eliminamos duplicados por si acaso hubiera registros repetidos en la hoja
+        horarios_ocupados = sorted(list(set(horarios_ocupados)))
+        
         todos_los_horarios = generar_horarios_disponibles()
+        # Filtramos de manera exacta los horarios libres
         horarios_libres = [h for h in todos_los_horarios if h not in horarios_ocupados]
         
         st.markdown("---")
@@ -421,6 +439,10 @@ elif menu == "🖨️ Imprimir Agenda del Día":
             </table>
         </div>
         """
+        st.components.v1.html(html_final, height=600, scrolling=True)
+            
+    st.markdown("---")
+    st.info("💡 **Para imprimir:** Presioná **Ctrl + P** en tu teclado. El sistema ocultará automáticamente los menús y dejará solo la planilla prolija lista para la impresora o PDF.")
         st.components.v1.html(html_final, height=600, scrolling=True)
             
     st.markdown("---")
